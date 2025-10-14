@@ -23,7 +23,18 @@ $pyInstallerArgs = @(
     $Spec
 )
 
-py -m PyInstaller @pyInstallerArgs
+if ($env:VIRTUAL_ENV) {
+    $pythonExe = Join-Path $env:VIRTUAL_ENV 'Scripts\python.exe'
+} else {
+    $pythonCmd = Get-Command python -ErrorAction SilentlyContinue
+    if ($pythonCmd) {
+        $pythonExe = $pythonCmd.Source
+    } else {
+        $pythonExe = 'py'
+    }
+}
+
+& $pythonExe -m PyInstaller @pyInstallerArgs
 
 $extras = @('README.md', 'LICENSE.txt')
 foreach ($file in $extras) {

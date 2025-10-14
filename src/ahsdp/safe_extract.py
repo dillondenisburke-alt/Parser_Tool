@@ -22,19 +22,21 @@ class SafeTempDir:
 
 
 def extract_zip_safe(zip_path, dest_dir, size_limit_bytes=1024 * 1024 * 1024):
+    dest_root = os.path.abspath(dest_dir)
     with zipfile.ZipFile(zip_path) as zf:
         total = 0
         for zi in zf.infolist():
-            out_path = os.path.normpath(os.path.join(dest_dir, zi.filename))
-            if not out_path.startswith(os.path.abspath(dest_dir)):
+            candidate = os.path.normpath(os.path.join(dest_root, zi.filename))
+            target_path = os.path.abspath(candidate)
+            if os.path.commonpath([dest_root, target_path]) != dest_root:
                 continue
             if zi.is_dir():
-                os.makedirs(out_path, exist_ok=True)
+                os.makedirs(target_path, exist_ok=True)
                 continue
             total += zi.file_size
             if total > size_limit_bytes:
                 break
-            os.makedirs(os.path.dirname(out_path), exist_ok=True)
-            with zf.open(zi, 'r') as src, open(out_path, 'wb') as dst:
+            os.makedirs(os.path.dirname(target_path), exist_ok=True)
+            with zf.open(zi, 'r') as src, open(target_path, 'wb') as dst:
                 shutil.copyfileobj(src, dst, 1024 * 128)
-    return dest_dir
+    return dest_root

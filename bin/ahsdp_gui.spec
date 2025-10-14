@@ -1,6 +1,12 @@
 # -*- mode: python ; coding: utf-8 -*-
 import pathlib
 
+try:
+    __import__('tkinterdnd2')
+    _hidden_imports = ['tkinterdnd2']
+except ImportError:
+    _hidden_imports = []
+
 block_cipher = None
 
 ROOT = pathlib.Path(__file__).resolve().parent.parent
@@ -14,7 +20,7 @@ a = Analysis(
         ('README.md', '.'),
         ('LICENSE.txt', '.'),
     ],
-    hiddenimports=['tkinterdnd2'],
+    hiddenimports=_hidden_imports,
     hookspath=[],
     hooksconfig={},
     runtime_hooks=[],
