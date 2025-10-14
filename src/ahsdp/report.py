@@ -116,8 +116,21 @@ def write_markdown(
     lines.extend(['', '## Diagnostics'])
     counters = (diagnostics.get('counters') or {}) if diagnostics else {}
     if counters:
-        for key, value in counters.items():
-            lines.append(f'- {key}: {value}')
+        for component in sorted(counters):
+            value = counters[component]
+            if isinstance(value, dict):
+                lines.append(f"- **{component.replace('_', ' ').title()}**")
+                for metric in sorted(value):
+                    metric_value = value[metric]
+                    label = metric.replace('_', ' ')
+                    lines.append(f"  - {label}: {metric_value}")
+            else:
+                lines.append(f'- {component}: {value}')
+        unknown = diagnostics.get('unknown_offsets') if diagnostics else None
+        if unknown:
+            lines.append('- _Unmapped Offsets:_')
+            for offset, value in sorted(unknown.items()):
+                lines.append(f'  - {offset}: {value}')
     else:
         lines.append('- _No diagnostic counters available._')
 
