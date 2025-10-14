@@ -1,8 +1,10 @@
 import argparse
 import os
 import sys
+from pathlib import Path
 
 from .faults import detect_board_faults
+from .identity import extract_identity
 from .parse_bb import parse_bb_files
 from .parse_nonbb import (
     parse_bcert,
@@ -10,7 +12,7 @@ from .parse_nonbb import (
     parse_cust_info,
     parse_filepkg_txt,
 )
-from .report import write_markdown, dump_json
+from .report import dump_json, write_markdown
 from .safe_extract import SafeTempDir, extract_zip_safe
 
 
@@ -98,6 +100,8 @@ def main():
             print('Unsupported input path.', file=sys.stderr)
             sys.exit(4)
 
+        identity = extract_identity(Path(workdir), Path(args.inp))
+
         hits, bb_artifacts = discover(workdir)
         if not hits and not (enable_bb and bb_artifacts):
             print('No supported files found.', file=sys.stderr)
@@ -126,6 +130,7 @@ def main():
             dump_json(diagnostics, os.path.join(args.export, 'diagnostics.json'))
             dump_json(findings, os.path.join(args.export, 'findings.json'))
             dump_json(meta, os.path.join(args.export, 'metadata.json'))
+            dump_json(identity, os.path.join(args.export, 'identity.json'))
 
         write_markdown(
             summary,
@@ -136,6 +141,7 @@ def main():
             redactions,
             findings=findings,
             metadata=meta,
+            identity=identity,
         )
 
     if keep_tmp and preserved_temp:

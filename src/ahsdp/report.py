@@ -43,6 +43,76 @@ def _exec_summary(events, findings, inventory, metadata):
     )
 
 
+def _system_summary(identity, inventory, redactions):
+    identity = identity or {}
+    inventory = inventory or {}
+
+    lines = ['## System Summary']
+
+    model = identity.get('model') or inventory.get('ProductName')
+    serial = identity.get('serial_number') or inventory.get('SerialNumber')
+    uuid = identity.get('uuid') or inventory.get('UUID')
+
+    firmware = identity.get('firmware') or {}
+    rom = firmware.get('system_rom') or inventory.get('ROMVersion')
+    ilo = firmware.get('ilo') or inventory.get('ILO')
+
+    capture = identity.get('capture') or {}
+
+    has_identity = any([model, serial, uuid, rom, ilo, capture])
+
+    if not has_identity:
+        lines.append('- _No identity information available._')
+        return lines
+
+    if model:
+        lines.append(f'- **Model:** {_redact(model, redactions)}')
+    if serial:
+        lines.append(f'- **Serial Number:** {_redact(serial, redactions)}')
+    if uuid:
+        lines.append(f'- **UUID:** {_redact(uuid, redactions)}')
+
+    firmware_bits = []
+    if rom:
+        firmware_bits.append(f'System ROM {_redact(rom, redactions)}')
+    if ilo:
+        firmware_bits.append(f'iLO {_redact(ilo, redactions)}')
+    if firmware_bits:
+        lines.append(f"- **Firmware:** {'; '.join(firmware_bits)}")
+
+    if capture:
+        capture_parts = []
+        count = capture.get('artifact_count')
+        artifacts = capture.get('artifacts') or []
+        if count is None and artifacts:
+            count = len(artifacts)
+        if count:
+            capture_parts.append(f'{count} capture file(s)')
+        dates = capture.get('dates') or []
+        if dates:
+            capture_parts.append('dates ' + ', '.join(dates[:3]) + (' …' if len(dates) > 3 else ''))
+        ids = capture.get('ids') or capture.get('bundle_ids') or []
+        if ids:
+            capture_parts.append('IDs ' + ', '.join(ids[:3]) + (' …' if len(ids) > 3 else ''))
+        source = capture.get('source')
+        if source:
+            capture_parts.append(f"source {_redact(source, redactions)}")
+        if artifacts and not count:
+            sample = ', '.join(_redact(a, redactions) for a in artifacts[:2])
+            capture_parts.append(f'sample {sample}')
+        elif artifacts and count and len(artifacts) < count:
+            sample = ', '.join(_redact(a, redactions) for a in artifacts[:2])
+            capture_parts.append(f'sample {sample}')
+        elif artifacts and len(artifacts) <= 2:
+            sample = ', '.join(_redact(a, redactions) for a in artifacts)
+            capture_parts.append(f'files {sample}')
+
+        if capture_parts:
+            lines.append(f"- **Capture:** {', '.join(capture_parts)}")
+
+    return lines
+
+
 def write_markdown(
     summary,
     inventory,
@@ -53,6 +123,7 @@ def write_markdown(
     *,
     findings=None,
     metadata=None,
+    identity=None,
 ):
     findings = findings or []
     metadata = metadata or {}
@@ -61,6 +132,8 @@ def write_markdown(
     timestamp = datetime.datetime.utcnow().replace(microsecond=0).isoformat() + 'Z'
 
     lines = ['# AHS Diagnostic Parser Report', f'_Generated: {timestamp}_', '']
+    lines.extend(_system_summary(identity, inventory, redactions))
+    lines.append('')
     lines.append(
         _exec_summary(events=events, findings=findings, inventory=inventory, metadata=metadata)
     )
