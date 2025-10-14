@@ -1,5 +1,5 @@
 #requires -Version 5
-[CmdletBinding()]
+[CmdletBinding(DefaultParameterSetName = 'Default')]
 param(
     [string]$Name = "AHS_Diagnostic_Parser",
     [string]$Icon = "",
@@ -20,6 +20,17 @@ if ($Clean) {
     if (Test-Path $specDir) { Remove-Item -Recurse -Force $specDir }
 }
 
+if ($env:VIRTUAL_ENV) {
+    $pythonExe = Join-Path $env:VIRTUAL_ENV 'Scripts\python.exe'
+} else {
+    $pythonCmd = Get-Command python -ErrorAction SilentlyContinue
+    if ($pythonCmd) {
+        $pythonExe = $pythonCmd.Source
+    } else {
+        $pythonExe = 'py'
+    }
+}
+
 $pyInstallerArgs = @(
     '--name', $Name,
     '--onefile',
@@ -35,17 +46,9 @@ if ($Icon) {
     $pyInstallerArgs += @('--icon', $Icon)
 }
 
-if ($env:VIRTUAL_ENV) {
-    $pythonExe = Join-Path $env:VIRTUAL_ENV 'Scripts\python.exe'
-} else {
-    $pythonCmd = Get-Command python -ErrorAction SilentlyContinue
-    if ($pythonCmd) {
-        $pythonExe = $pythonCmd.Source
-    } else {
-        $pythonExe = 'py'
-    }
-}
-
 & $pythonExe -m PyInstaller @pyInstallerArgs
+if ($LASTEXITCODE -ne 0) {
+    throw "PyInstaller failed with exit code $LASTEXITCODE"
+}
 
 Write-Host "Executable produced at: dist\$Name.exe"
