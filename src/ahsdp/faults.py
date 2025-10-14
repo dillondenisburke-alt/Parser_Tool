@@ -33,6 +33,7 @@ def detect_board_faults(records):
             'severity': level,
             'confidence': 'High',
             'source': rec.get('source'),
+            'component': 'System Board',
         }
         if rec.get('timestamp'):
             finding['timestamp'] = rec['timestamp']

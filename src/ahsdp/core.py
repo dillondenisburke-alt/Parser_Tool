@@ -9,7 +9,7 @@ from .parse_nonbb import (
     parse_cust_info,
     parse_filepkg_txt,
 )
-from .report import write_markdown, dump_json
+from .report import write_markdown, dump_json, build_component_matrix
 from .safe_extract import SafeTempDir, extract_zip_safe
 
 
@@ -118,6 +118,7 @@ def run_parser(
         'bb_parsed': False,
         'bb_sources': [],
         'artifact_count': 0,
+        'faults_enabled': faults_enabled,
     }
 
     with SafeTempDir(base=temp_dir, keep=keep_tmp_flag) as tmp_dir:
@@ -145,6 +146,9 @@ def run_parser(
             metadata['bb_sources'] = bb_result['sources']
 
         findings = _build_findings(events, faults_enabled)
+
+        component_matrix = build_component_matrix(findings, metadata, events)
+        metadata['component_matrix'] = component_matrix
 
         if export_dir:
             export_dir_abs = os.path.abspath(export_dir)

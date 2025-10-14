@@ -23,3 +23,4 @@ def test_detect_board_faults_flags_board_issue():
     assert findings, 'expected board fault detection'
     assert findings[0]['severity'] == 'ERROR'
     assert 'System board anomaly' in findings[0]['finding']
+    assert findings[0]['component'] == 'System Board'

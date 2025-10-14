@@ -23,6 +23,13 @@ Set any of these before running the CLI or GUI to opt into extra analysis:
 - `AHS_FAULTS=1` — turn on heuristic fault detection (system-board anomaly patterns).
 - `AHS_KEEP_TMP=1` — preserve the temporary extraction directory for manual inspection.
 
+## Hardware Fault Summary
+- The Markdown report starts with a **Hardware Fault Summary** that groups findings by hardware component and lists the highest severity/count detected for each area.
+- Components with findings show emoji-coded status (`🔴` error, `🟠` warning, `🟢` clear). Components without telemetry are called out as `⚪ … / data missing` so operators know coverage gaps.
+- BlackBox parsing (`AHS_BB`) and fault heuristics (`AHS_FAULTS`) must both be enabled to receive system-board coverage. Disabling either flag, or supplying bundles without `.bb` logs, will mark the affected components as “data missing”.
+- JSON exports now expose a `component_matrix` field inside `metadata.json`, e.g. `{"System Board": {"status": "warn"}, "Power Supply": {"status": "missing"}}`, so automation can reason about the same component health matrix shown in the Markdown report.
+- Treat “data missing” as “no conclusion”: it reflects absent telemetry rather than a clean bill of health and should prompt collection of fresh diagnostics before closing an investigation.
+
 ## Packaging & Installation
 - Editable install for development: `python -m pip install -e .`
 - Standard install: `python -m pip install .`
