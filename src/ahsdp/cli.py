@@ -3,6 +3,12 @@ import os
 import sys
 
 from .core import run_parser
+from .faults import detect_hardware_faults
+
+
+def build_findings(records):
+    """CLI helper to construct hardware findings from parsed records."""
+    return detect_hardware_faults(records)
 
 
 def _parse_redactions(value: str):
