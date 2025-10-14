@@ -5,6 +5,8 @@ The parser understands BlackBox (`.bb`) payloads and highlights system-board fau
 
 ## CLI Quickstart (Windows PowerShell)
 ```
+git clone https://github.com/dillondenisburke-alt/Parser_Tool.git
+cd Parser_Tool
 python -m venv .venv
 .\.venv\Scripts\Activate.ps1
 python -m pip install --upgrade pip
@@ -24,6 +26,7 @@ Set any of these before running the CLI or GUI to opt into extra analysis:
 - `AHS_KEEP_TMP=1` — preserve the temporary extraction directory for manual inspection.
 
 ## Packaging & Installation
+- Repository: `https://github.com/dillondenisburke-alt/Parser_Tool.git`
 - Editable install for development: `python -m pip install -e .`
 - Standard install: `python -m pip install .`
 - Entry points registered:
