@@ -39,20 +39,16 @@ Set any of these before running the CLI or GUI to opt into extra analysis:
 - The drop-zone binary appears under `dist\ahsdp_gui\ahsdp-gui.exe`, alongside README/license copies.
 
 ### Portable CLI Executable
-1. Prep a Windows x64 environment:
-   ```
-   python -m venv .venv
-   .\.venv\Scripts\Activate.ps1
-   python -m pip install --upgrade pip
-   python -m pip install -r requirements.txt
-   python -m pip install pyinstaller
-   ```
-2. Build from the repo root (icon optional):
-   ```
-   powershell -File .\bin\build_cli.ps1 -Clean -Icon assets\icon.ico
-   ```
-3. Run the standalone binary:
-   ```
-   .\dist\AHS_Diagnostic_Parser.exe --input "C:\path\to\bundle_or_folder" --out .\exports
-   ```
-   Add extra `--add-data` pairs inside `bin\build_cli.ps1` if you ship additional runtime files.
+- Create/activate the PowerShell session and allow the script to run:
+  ```
+  Set-ExecutionPolicy -Scope Process Bypass -Force
+  .\bin\build_cli.ps1 -Clean -Icon assets\icon.ico
+  ```
+  (If this is the first run, the script creates `.venv`, upgrades `pip`, installs requirements, and pulls in PyInstaller automatically.)
+- When the build completes, the CLI binary lives at `dist\ahsdp.exe`.
+- Smoke test:
+  ```
+  .\dist\ahsdp.exe --help
+  .\dist\ahsdp.exe --input "C:\path\to\bundle_or_folder" --out .\exports
+  ```
+  Adjust `bin\build_cli.ps1` if you need to bundle extra data assets (see the commented `--add-data` examples inside the script).
