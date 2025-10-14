@@ -1,7 +1,7 @@
 import os
 from typing import Dict, List, Optional
 
-from .faults import detect_board_faults
+from .faults import detect_hardware_faults
 from .parse_bb import parse_bb_files
 from .parse_nonbb import (
     parse_bcert,
@@ -70,7 +70,7 @@ def parse_non_bb(hits: Dict[str, str]):
 def _build_findings(events: List[dict], enable_faults: bool):
     if not enable_faults or not events:
         return []
-    return detect_board_faults(events)
+    return detect_hardware_faults(events)
 
 
 def run_parser(
