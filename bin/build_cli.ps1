@@ -5,7 +5,7 @@ param(
 
 $ErrorActionPreference = "Stop"
 
-Write-Host "== AHS Diagnostic Parser â€“ CLI Builder =="
+Write-Host "== AHS Diagnostic Parser – CLI Builder =="
 
 # 0) Print where we are
 Write-Host ("Repo root: " + (Resolve-Path ".").Path)
@@ -35,7 +35,9 @@ python -m src.ahsdp.cli --help | Out-Null
 
 # 5) Prepare a tiny runner so PyInstaller has a plain script entry point
 $runner = @"
-from src.ahsdp.cli import main
+import sys
+from ahsdp.cli import main
+
 if __name__ == "__main__":
     main()
 "@
@@ -44,7 +46,7 @@ Set-Content -Encoding UTF8 .\bin\ahsdp_runner.py $runner
 # 6) Build with PyInstaller
 $iconPath = Resolve-Path $Icon -ErrorAction SilentlyContinue
 if (-not $iconPath) {
-  Write-Warning "Icon not found at '$Icon' â€“ continuing without icon."
+  Write-Warning "Icon not found at '$Icon' – continuing without icon."
   $iconArg = @()
 } else {
   $iconArg = @("--icon", $iconPath.Path)
@@ -58,7 +60,8 @@ $pyiArgs = @(
   "--noconfirm",
   "--onefile",
   "--name", "ahsdp",
-  "--console"
+  "--console",
+  "--paths", ".\src"
 ) + $iconArg + $addData + @(".\bin\ahsdp_runner.py")
 
 Write-Host "Building EXE..."
@@ -68,8 +71,8 @@ pyinstaller @pyiArgs
 $exe = Join-Path ".\dist" "ahsdp.exe"
 if (Test-Path $exe) {
   Write-Host ""
-  Write-Host "âœ… Build complete:"
+  Write-Host "? Build complete:"
   Write-Host "   $((Resolve-Path $exe).Path)"
 } else {
-  Write-Error "Build failed â€“ ahsdp.exe not found in dist"
+  Write-Error "Build failed – ahsdp.exe not found in dist"
 }
