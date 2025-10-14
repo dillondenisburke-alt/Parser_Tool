@@ -1,0 +1,7 @@
+﻿<BCert>
+  <ProductName>ProLiant DL380 Gen10</ProductName>
+  <SerialNumber>ABC1234DEF</SerialNumber>
+  <ROMVersion>U32 v2.72</ROMVersion>
+  <ILOVersion>iLO 5 v2.77</ILOVersion>
+  <FactoryTests>PASS</FactoryTests>
+</BCert>

@@ -1,0 +1,3 @@
+﻿AHS Diagnostic Parser â€” Proprietary License
+
+Copyright (c) 2025 Dillon Burke. All rights reserved.
