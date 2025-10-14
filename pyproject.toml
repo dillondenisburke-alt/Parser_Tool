@@ -1,0 +1,35 @@
+[build-system]
+requires = ["setuptools>=68", "wheel"]
+build-backend = "setuptools.build_meta"
+
+[project]
+name = "ahsdp"
+version = "1.1.0"
+description = "Local-first parser for HPE iLO AHS bundles with Markdown/JSON reporting."
+readme = "README.md"
+requires-python = ">=3.9"
+license = { file = "LICENSE.txt" }
+authors = [
+    { name = "Dillon Burke" }
+]
+classifiers = [
+    "Programming Language :: Python :: 3",
+    "Operating System :: Microsoft :: Windows",
+    "License :: OSI Approved :: MIT License",
+]
+dependencies = []
+
+[project.optional-dependencies]
+gui = ["tkinterdnd2>=0.3.0; platform_system == 'Windows'"]
+
+[project.scripts]
+ahsdp = "ahsdp.cli:main"
+
+[project.gui-scripts]
+ahsdp-gui = "ahsdp.gui:main"
+
+[tool.setuptools.packages.find]
+where = ["src"]
+
+[tool.setuptools]
+package-dir = { "" = "src" }
