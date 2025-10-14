@@ -3,6 +3,108 @@ import json
 import os
 from collections import Counter
 
+
+DEFAULT_COMPONENTS = (
+    'System Board',
+    'Power Supply',
+    'Cooling',
+    'Storage',
+    'Networking',
+)
+
+SEVERITY_DISPLAY_ORDER = ('CRITICAL', 'ERROR', 'WARN', 'INFO')
+
+
+def _normalise_severity(value):
+    if not value:
+        return 'INFO'
+    upper = str(value).upper()
+    if upper == 'CRIT':
+        return 'CRITICAL'
+    return upper
+
+
+def _component_has_base_telemetry(component, metadata, events):
+    if component == 'System Board':
+        return (
+            metadata.get('faults_enabled', False)
+            and metadata.get('bb_enabled', False)
+            and metadata.get('bb_parsed', False)
+            and bool(events)
+        )
+    return False
+
+
+def build_component_matrix(findings, metadata, events):
+    findings = findings or []
+    metadata = metadata or {}
+    events = events or []
+
+    component_map = {}
+    for entry in findings:
+        component = entry.get('component') or 'General'
+        component_map.setdefault(component, []).append(entry)
+
+    components = list(DEFAULT_COMPONENTS)
+    for component in component_map:
+        if component not in components:
+            components.append(component)
+
+    matrix = {}
+    for component in components:
+        component_entries = component_map.get(component, [])
+        counts = Counter()
+        for entry in component_entries:
+            counts[_normalise_severity(entry.get('severity', 'INFO'))] += 1
+
+        telemetry_present = bool(component_entries) or _component_has_base_telemetry(
+            component, metadata, events
+        )
+
+        if counts.get('ERROR') or counts.get('CRITICAL'):
+            status = 'error'
+        elif counts.get('WARN'):
+            status = 'warn'
+        elif component_entries:
+            status = 'ok'
+        else:
+            status = 'ok' if telemetry_present else 'missing'
+
+        entry = {'status': status}
+        if counts:
+            entry['counts'] = dict(counts)
+            entry['total_findings'] = sum(counts.values())
+        if not telemetry_present:
+            entry['telemetry'] = 'missing'
+        matrix[component] = entry
+
+    return matrix
+
+
+def _format_component_summary(component, entry):
+    status = entry.get('status', 'missing')
+    total = entry.get('total_findings', 0)
+    counts = entry.get('counts', {})
+
+    severity_bits = []
+    for level in SEVERITY_DISPLAY_ORDER:
+        if counts.get(level):
+            severity_bits.append(f"{level}×{counts[level]}")
+
+    if total:
+        finding_label = 'finding' if total == 1 else 'findings'
+        detail = f"{total} {finding_label}"
+        if severity_bits:
+            detail = f"{detail} ({', '.join(severity_bits)})"
+    else:
+        detail = 'No issues detected'
+
+    if status == 'missing':
+        detail = f'{detail} / data missing'
+
+    prefix = {'error': '🔴', 'warn': '🟠', 'ok': '🟢', 'missing': '⚪'}.get(status, '⚪')
+    return f"- {prefix} **{component}:** {detail}"
+
 from .redact import mask
 
 
@@ -64,6 +166,17 @@ def write_markdown(
     lines.append(
         _exec_summary(events=events, findings=findings, inventory=inventory, metadata=metadata)
     )
+    lines.append('')
+
+    component_matrix = metadata.get('component_matrix') or build_component_matrix(
+        findings, metadata, events
+    )
+    lines.append('## Hardware Fault Summary')
+    if component_matrix:
+        for component, entry in component_matrix.items():
+            lines.append(_format_component_summary(component, entry))
+    else:
+        lines.append('- _No component telemetry available._')
     lines.append('')
 
     lines.extend(['| Finding | Severity | Confidence |', '|---|---|---|'])
