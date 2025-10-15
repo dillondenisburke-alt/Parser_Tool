@@ -1,236 +1,175 @@
 import os
-import queue
+import sys
 import threading
-import tkinter as tk
-from tkinter import filedialog, messagebox, ttk
+import traceback
+from datetime import datetime, timezone
+import PySimpleGUI as sg
 
-try:
-    from tkinterdnd2 import DND_FILES, TkinterDnD  # type: ignore
+# Internal imports from your package
+from ahsdp.utils import ensure_outdir
+from ahsdp.safe_extract import safe_extract_ahs
+from ahsdp.parse_nonbb import parse_extracted_nonbb
+from ahsdp.report import build_report_markdown, write_report_files
 
-    DND_AVAILABLE = True
-except ImportError:
-    TkinterDnD = None  # type: ignore
-    DND_AVAILABLE = False
+APP_TITLE = "AHS Diagnostic Parser"
+VERSION = "1.1.0"
+DEFAULT_EXPORT_DIR = os.path.join(os.getcwd(), "exports")
 
-from .core import run_parser
+def _utc_now_iso():
+    return datetime.now(timezone.utc).isoformat()
 
+def run_pipeline(input_path: str, out_dir: str, log_cb):
+    """
+    Minimal pipeline: validate, (maybe) extract, parse non-bb, write report.
+    """
+    try:
+        log_cb(f"🔎 Input: {input_path}")
+        log_cb(f"📁 Output dir: {out_dir}")
+        ensure_outdir(out_dir)
 
-def _default_output_dir():
-    docs = os.path.join(os.path.expanduser('~'), 'Documents')
-    target = os.path.join(docs, 'AHS Reports')
-    os.makedirs(target, exist_ok=True)
-    return target
+        src_is_dir = os.path.isdir(input_path)
+        src_is_file = os.path.isfile(input_path)
 
+        if not (src_is_dir or src_is_file):
+            raise FileNotFoundError(f"Input path not found: {input_path}")
 
-class ParserApp:
-    def __init__(self, root):
-        self.root = root
-        self.root.title('AHS Diagnostic Parser')
-        self.root.geometry('520x360')
-        self.root.minsize(480, 320)
-
-        self.queue = queue.Queue()
-
-        self.output_dir_var = tk.StringVar(value=_default_output_dir())
-        self.redactions_var = tk.StringVar(value='email,phone,token')
-        self.bb_var = tk.BooleanVar(value=True)
-        self.faults_var = tk.BooleanVar(value=True)
-        self.keep_tmp_var = tk.BooleanVar(value=False)
-        self.status_var = tk.StringVar(value='Drop an AHS bundle (.ahs/.zip) to begin.')
-
-        self._build_layout()
-        self._poll_queue()
-
-    # UI construction --------------------------------------------------
-    def _build_layout(self):
-        main = ttk.Frame(self.root, padding=12)
-        main.pack(fill=tk.BOTH, expand=True)
-
-        drop_frame = ttk.LabelFrame(main, text='Input Bundle')
-        drop_frame.pack(fill=tk.BOTH, expand=True, pady=(0, 12))
-
-        if DND_AVAILABLE:
-            self.drop_label = ttk.Label(
-                drop_frame,
-                text='Drag & drop bundle here',
-                anchor=tk.CENTER,
-                relief=tk.RIDGE,
-                padding=18,
-            )
-            self.drop_label.pack(fill=tk.BOTH, expand=True)
-            self.drop_label.drop_target_register(DND_FILES)
-            self.drop_label.dnd_bind('<<Drop>>', self._handle_drop)
+        # Only accept .ahs files (or a folder containing .ahs files)
+        ahs_files = []
+        if src_is_file:
+            if not input_path.lower().endswith(".ahs"):
+                raise ValueError("Only .ahs files are supported.")
+            ahs_files = [input_path]
         else:
-            ttk.Label(
-                drop_frame,
-                text='Drag & drop unavailable (tkinterdnd2 not installed).\nUse Browse… to pick a bundle.',
-                anchor=tk.CENTER,
-                padding=12,
-                justify=tk.CENTER,
-            ).pack(fill=tk.BOTH, expand=True)
+            for root, _, files in os.walk(input_path):
+                for f in files:
+                    if f.lower().endswith(".ahs"):
+                        ahs_files.append(os.path.join(root, f))
 
-        controls = ttk.Frame(main)
-        controls.pack(fill=tk.X, pady=(0, 12))
+        if not ahs_files:
+            raise ValueError("No .ahs files found in the selected input.")
 
-        ttk.Button(controls, text='Browse…', command=self._browse).pack(side=tk.RIGHT, padx=(8, 0))
-        ttk.Label(controls, text='Output directory:').pack(side=tk.LEFT)
-        output_entry = ttk.Entry(controls, textvariable=self.output_dir_var)
-        output_entry.pack(side=tk.LEFT, fill=tk.X, expand=True, padx=(8, 0))
+        log_cb(f"📦 Found {len(ahs_files)} .ahs bundle(s). Extracting…")
 
-        options = ttk.Frame(main)
-        options.pack(fill=tk.X, pady=(0, 12))
+        extracted_roots = []
+        for idx, ahs in enumerate(ahs_files, 1):
+            log_cb(f"  • [{idx}/{len(ahs_files)}] {os.path.basename(ahs)}")
+            dest = os.path.join(out_dir, os.path.splitext(os.path.basename(ahs))[0])
+            os.makedirs(dest, exist_ok=True)
+            root = safe_extract_ahs(ahs, dest)  # returns path containing extracted files
+            extracted_roots.append(root)
 
-        ttk.Label(options, text='Redactions (comma separated):').grid(row=0, column=0, sticky='w')
-        ttk.Entry(options, textvariable=self.redactions_var).grid(
-            row=0, column=1, sticky='ew', padx=(8, 0)
+        # Parse non-bb files from each extracted bundle
+        all_findings = []
+        inventory = []
+        for root in extracted_roots:
+            log_cb(f"🧩 Parsing extracted bundle at: {root}")
+            inv, findings = parse_extracted_nonbb(root)
+            inventory.append(inv)
+            all_findings.extend(findings)
+
+        # Build + write report
+        log_cb("📝 Building report…")
+        md = build_report_markdown(
+            inventory_blocks=inventory,
+            findings=all_findings,
+            meta={
+                "generated_utc": _utc_now_iso(),
+                "source_count": len(ahs_files),
+                "experimental_bb": False,
+            },
         )
+        written = write_report_files(md, out_dir)
+        for p in written:
+            log_cb(f"✅ Wrote: {p}")
 
-        ttk.Checkbutton(options, text='Parse BlackBox (.bb)', variable=self.bb_var).grid(
-            row=1, column=0, sticky='w', pady=(8, 0)
-        )
-        ttk.Checkbutton(options, text='Detect board faults', variable=self.faults_var).grid(
-            row=1, column=1, sticky='w', pady=(8, 0)
-        )
-        ttk.Checkbutton(options, text='Keep temporary extraction', variable=self.keep_tmp_var).grid(
-            row=2, column=0, sticky='w', pady=(8, 0)
-        )
+        return True, written
 
-        options.columnconfigure(1, weight=1)
-
-        status_frame = ttk.Frame(main)
-        status_frame.pack(fill=tk.X)
-
-        ttk.Label(status_frame, textvariable=self.status_var, wraplength=460, foreground='#1f2933').pack(
-            anchor='w'
-        )
-
-        self.links_frame = ttk.Frame(main)
-        self.links_frame.pack(fill=tk.X, pady=(8, 0))
-
-    # Event handling ---------------------------------------------------
-    def _handle_drop(self, event):
-        paths = self.root.tk.splitlist(event.data)
-        if not paths:
-            return
-        self._start_job(paths[0])
-
-    def _browse(self):
-        file_path = filedialog.askopenfilename(
-            title='Select AHS bundle',
-            filetypes=[('AHS bundle', '*.ahs'), ('Zip archive', '*.zip'), ('All files', '*.*')],
-        )
-        if file_path:
-            self._start_job(file_path)
-
-    def _start_job(self, path):
-        path = path.strip()
-        if not path:
-            return
-        if not os.path.exists(path):
-            messagebox.showerror('File not found', f'No such file: {path}')
-            return
-        self.status_var.set('Processing bundle…')
-        self._set_controls_state(tk.DISABLED)
-        self._clear_links()
-
-        worker = threading.Thread(target=self._worker, args=(path,), daemon=True)
-        worker.start()
-
-    def _worker(self, path):
-        exports_dir = os.path.join(self.output_dir_var.get(), 'exports')
-        try:
-            result = run_parser(
-                path,
-                self.output_dir_var.get(),
-                export_dir=exports_dir,
-                redactions=self._parse_redactions(),
-                report_name='report.md',
-                enable_bb=self.bb_var.get(),
-                enable_faults=self.faults_var.get(),
-                keep_temp=self.keep_tmp_var.get(),
-            )
-            self.queue.put(('success', result))
-        except Exception as exc:  # noqa: BLE001
-            self.queue.put(('error', str(exc)))
-
-    def _parse_redactions(self):
-        value = self.redactions_var.get()
-        if not value:
-            return []
-        return [token.strip() for token in value.split(',') if token.strip()]
-
-    def _poll_queue(self):
-        try:
-            kind, payload = self.queue.get_nowait()
-        except queue.Empty:
-            self.root.after(100, self._poll_queue)
-            return
-
-        if kind == 'success':
-            self._handle_success(payload)
-        else:
-            self._handle_error(payload)
-
-        self.root.after(100, self._poll_queue)
-
-    def _handle_success(self, result):
-        self.status_var.set('Parsing complete.')
-        self._set_controls_state(tk.NORMAL)
-
-        report_path = result['report_path']
-        exports_dir = result.get('export_dir')
-
-        self._create_link('Open report folder', os.path.dirname(report_path))
-        if exports_dir:
-            self._create_link('Open exports folder', exports_dir)
-        if result.get('preserved_temp'):
-            self._create_link('Open temp extract', result['preserved_temp'])
-
-    def _handle_error(self, message):
-        self.status_var.set(f'Error: {message}')
-        self._set_controls_state(tk.NORMAL)
-        messagebox.showerror('AHS Parser Error', message)
-
-    def _set_controls_state(self, state):
-        for child in self.root.winfo_children():
-            self._set_state_recursive(child, state)
-
-    def _set_state_recursive(self, widget, state):
-        if isinstance(widget, (ttk.Entry, ttk.Button, ttk.Checkbutton)):
-            widget.state(['!disabled'] if state == tk.NORMAL else ['disabled'])
-        for child in widget.winfo_children():
-            self._set_state_recursive(child, state)
-
-    def _clear_links(self):
-        for child in self.links_frame.winfo_children():
-            child.destroy()
-
-    def _create_link(self, label, path):
-        def open_path(_event=None):
-            try:
-                os.startfile(path)  # type: ignore[attr-defined]
-            except Exception as exc:  # noqa: BLE001
-                messagebox.showerror('Unable to open', f'{path}\n\n{exc}')
-
-        link = ttk.Label(self.links_frame, text=label, foreground='#1d4ed8', cursor='hand2')
-        link.pack(anchor='w')
-        link.bind('<Button-1>', open_path)
-
+    except Exception as e:
+        log_cb("❌ Error during run:")
+        log_cb("    " + str(e))
+        tb = traceback.format_exc()
+        for line in tb.splitlines():
+            log_cb("    " + line)
+        return False, []
 
 def main():
-    if DND_AVAILABLE:
-        root = TkinterDnD.Tk()  # type: ignore[attr-defined]
-    else:
-        root = tk.Tk()
+    sg.theme("SystemDefault")
+    layout = [
+        [sg.Text(f"{APP_TITLE} — v{VERSION}", font=("Segoe UI", 14, "bold"))],
+        [sg.Text("Select a .ahs file (or a folder containing .ahs files):")],
+        [
+            sg.Input(key="-INPUT-", enable_events=True, expand_x=True),
+            sg.FileBrowse("Browse .ahs", file_types=(("AHS Bundles", "*.ahs"),)),
+            sg.FolderBrowse("Browse folder"),
+        ],
+        [sg.Text("Output folder:"), sg.Input(DEFAULT_EXPORT_DIR, key="-OUT-", expand_x=True),
+         sg.FolderBrowse("Choose…")],
+        [sg.Multiline("", size=(88, 18), key="-LOG-", autoscroll=True, write_only=True, expand_x=True, expand_y=True)],
+        [
+            sg.Button("Run", key="-RUN-", bind_return_key=True),
+            sg.Button("Open exports", key="-OPEN-"),
+            sg.Push(),
+            sg.Button("Quit")
+        ]
+    ]
 
-    try:
-        root.iconname('ahsdp')
-    except tk.TclError:
-        pass
+    window = sg.Window(APP_TITLE, layout, resizable=True)
 
-    app = ParserApp(root)
-    root.mainloop()
+    busy = False
+    worker = None
 
+    def log(msg: str):
+        window["-LOG-"].print(msg)
 
-if __name__ == '__main__':
+    while True:
+        event, values = window.read(timeout=100)
+        if event in (sg.WIN_CLOSED, "Quit"):
+            break
+
+        if event == "-RUN-":
+            if busy:
+                continue
+            inp = (values.get("-INPUT-") or "").strip()
+            outp = (values.get("-OUT-") or "").strip() or DEFAULT_EXPORT_DIR
+
+            if not inp:
+                sg.popup_error("Please select a .ahs file or a folder containing .ahs files.")
+                continue
+
+            busy = True
+            window["-RUN-"].update(disabled=True)
+            log("—" * 70)
+            log("▶ Starting…")
+
+            def do_work():
+                ok, paths = run_pipeline(inp, outp, log)
+                if ok:
+                    log("🎉 Done.")
+                else:
+                    log("⚠️ Completed with errors.")
+                window.write_event_value("-DONE-", ok)
+
+            worker = threading.Thread(target=do_work, daemon=True)
+            worker.start()
+
+        if event == "-OPEN-":
+            outp = values.get("-OUT-", DEFAULT_EXPORT_DIR)
+            if outp and os.path.isdir(outp):
+                try:
+                    if sys.platform.startswith("win"):
+                        os.startfile(outp)  # type: ignore[attr-defined]
+                    elif sys.platform == "darwin":
+                        os.system(f'open "{outp}"')
+                    else:
+                        os.system(f'xdg-open "{outp}"')
+                except Exception:
+                    sg.popup_error(f"Could not open folder:\n{outp}")
+
+        if event == "-DONE-":
+            busy = False
+            window["-RUN-"].update(disabled=False)
+
+    window.close()
+
+if __name__ == "__main__":
     main()

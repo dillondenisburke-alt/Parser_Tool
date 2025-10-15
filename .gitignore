@@ -1,0 +1,6 @@
+# Build artefacts
+/build/
+/dist/
+*.spec
+/.venv/
+/__pycache__/
