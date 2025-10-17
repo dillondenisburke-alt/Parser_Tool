@@ -18,9 +18,14 @@ python -m ahsdp.cli --in .\tests\fixtures\demo_data\demo.ahs.zip --out .\exports
 Install the GUI extras and launch the desktop interface:
 
 ```
+python -m pip install --upgrade --extra-index-url https://PySimpleGUI.net/install PySimpleGUI
 python -m pip install "ahsdp[gui]"
 python run_app.py  # or: python -m ahsdp.gui
 ```
+
+The GUI extra declared in `pyproject.toml` pins `PySimpleGUI>=4.60.5`; installing from the
+[official index mirror](https://PySimpleGUI.net/install) ensures you receive the maintained
+build before launching the app.
 
 The PySimpleGUI front-end lets you:
 
@@ -45,6 +50,7 @@ Set any of these before running the CLI or GUI to opt into extra analysis:
   - `ahsdp-gui` (desktop launcher at `ahsdp.gui:main`)
 
 ## Windows Bundles (PyInstaller)
+- Install build deps: `python -m pip install --upgrade --extra-index-url https://PySimpleGUI.net/install PySimpleGUI`
 - Install build deps: `python -m pip install .[gui] pyinstaller`
 - GUI build: `powershell -File .\bin\build_gui.ps1 -Clean`
 - The drop-zone binary appears under `dist\ahsdp_gui\ahsdp-gui.exe`, alongside README/license copies.
