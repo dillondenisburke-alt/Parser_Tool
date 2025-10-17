@@ -1,3 +1,5 @@
+"""Smoke tests for parsing Non-BB customer info files."""
+
 from pathlib import Path
 
 from src.ahsdp.parse_nonbb import parse_cust_info
@@ -16,6 +18,7 @@ def create_cust_info_dat(tmp_path: Path) -> Path:
 
 
 def test_parse_cust_info_returns_expected_fields(tmp_path):
+    """parse_cust_info should extract all key=value fields from the fixture."""
     cust_info_path = create_cust_info_dat(tmp_path)
 
     result = parse_cust_info(cust_info_path)
