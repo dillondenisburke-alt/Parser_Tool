@@ -11,6 +11,7 @@ from .parse_nonbb import (
 )
 from .report import write_markdown, dump_json
 from .safe_extract import SafeTempDir, extract_zip_safe
+from .diagnostics import evaluate_diagnostic_findings
 
 
 TRUTHY = {'1', 'true', 'yes', 'on'}
@@ -67,10 +68,12 @@ def parse_non_bb(hits: Dict[str, str]):
     return summary, inventory, diagnostics
 
 
-def _build_findings(events: List[dict], enable_faults: bool):
-    if not enable_faults or not events:
-        return []
-    return detect_board_faults(events)
+def _build_findings(events: List[dict], enable_faults: bool, diagnostics: Dict[str, object]):
+    findings: List[Dict[str, object]] = []
+    if enable_faults and events:
+        findings.extend(detect_board_faults(events))
+    findings.extend(evaluate_diagnostic_findings(diagnostics))
+    return findings
 
 
 def run_parser(
@@ -144,7 +147,7 @@ def run_parser(
             metadata['bb_parsed'] = True
             metadata['bb_sources'] = bb_result['sources']
 
-        findings = _build_findings(events, faults_enabled)
+        findings = _build_findings(events, faults_enabled, diagnostics)
 
         if export_dir:
             export_dir_abs = os.path.abspath(export_dir)
