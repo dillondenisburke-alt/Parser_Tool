@@ -12,6 +12,14 @@ from typing import Callable, Iterable, Optional
 
 import PySimpleGUI as sg
 
+# PySimpleGUI 5.x uses a namespace package where the top-level module exposes
+# the implementation via ``PySimpleGUI.PySimpleGUI``. The wrapper can miss
+# attributes such as ``theme`` so we fall back when needed for compatibility.
+if not hasattr(sg, "theme"):
+    from PySimpleGUI import PySimpleGUI as _sg  # type: ignore[attr-defined]
+
+    sg = _sg
+
 from ahsdp.core import run_parser
 
 APP_TITLE = "AHS Diagnostic Parser"
@@ -137,8 +145,25 @@ def run_pipeline(
         return False, {}
 
 
+def _apply_theme(name: str) -> None:
+    """Apply a theme using whichever API is present in this PySimpleGUI build."""
+
+    theme_fn = getattr(sg, "theme", None)
+    if callable(theme_fn):
+        theme_fn(name)
+        return
+
+    theme_global = getattr(sg, "theme_global", None)
+    if callable(theme_global):
+        theme_global = theme_global()
+
+    set_theme = getattr(theme_global, "set_theme", None) if theme_global else None
+    if callable(set_theme):
+        set_theme(name)
+
+
 def main() -> None:
-    sg.theme("SystemDefault")
+    _apply_theme("SystemDefault")
 
     layout = [
         [sg.Text(f"{APP_TITLE} — v{VERSION}", font=("Segoe UI", 14, "bold"))],
