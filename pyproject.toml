@@ -20,7 +20,9 @@ classifiers = [
 dependencies = []
 
 [project.optional-dependencies]
-gui = ["tkinterdnd2>=0.3.0; platform_system == 'Windows'"]
+gui = [
+    "PySimpleGUI>=4.60.5",
+]
 
 [project.scripts]
 ahsdp = "ahsdp.cli:main"

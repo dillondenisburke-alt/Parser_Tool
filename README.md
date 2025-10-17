@@ -14,10 +14,21 @@ python -m pip install -e .
 python -m ahsdp.cli --in .\tests\fixtures\demo_data\demo.ahs.zip --out .\exports\report.md --export .\exports
 ```
 
-## Desktop Drop-Zone App
-- Optional drag-and-drop support uses `tkinterdnd2` (`python -m pip install "ahsdp[gui]"`).
-- Launch with `python -m ahsdp.gui` or the installed `ahsdp-gui` shortcut.
-- Drop an `.ahs`/`.zip` bundle or click **Browse…**; outputs land in the chosen directory with JSON exports in `exports/`.
+## Cross-platform GUI Quickstart
+Install the GUI extras and launch the desktop interface:
+
+```
+python -m pip install "ahsdp[gui]"
+python run_app.py  # or: python -m ahsdp.gui
+```
+
+The PySimpleGUI front-end lets you:
+
+- Browse to an `.ahs`/`.zip` bundle or an extracted folder.
+- Choose where the Markdown report is written (folder or `.md` path).
+- Toggle `.bb` parsing, heuristic fault detection, and temporary extraction retention.
+- Generate optional JSON exports alongside the report.
+- Open the resulting report or export directory directly from the GUI.
 
 ## Feature Toggles
 Set any of these before running the CLI or GUI to opt into extra analysis:
